@@ -2157,10 +2157,10 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         const SILL_PERCH_COUNT = 5; // Number of spots along the sill
         const SILL_BIRD_SCALE = 3; // Birds are 3x larger on sill
         const SILL_PERCH_CHANCE = 0.07; // 7% chance to choose sill
-        const SILL_PERCH_DURATION_MIN = 60000; // 1 minute minimum
-        const SILL_PERCH_DURATION_MAX = 180000; // 3 minutes maximum
+        const SILL_PERCH_DURATION_MIN = 120000; // 2 minutes minimum (was 1 min) - longer for relaxing vibe
+        const SILL_PERCH_DURATION_MAX = 300000; // 5 minutes maximum (was 3 min) - more time to enjoy them
         const MAX_SILL_BIRDS = 3; // Maximum birds on sill at once
-        const SILL_TRANSITION_DURATION = 1000; // 1 second transition time (ms)
+        const SILL_TRANSITION_DURATION = 2500; // 2.5 second transition time (was 1s) - slower, more graceful
         const SILL_APPROACH_DISTANCE = 150; // Start transition when this close to sill
         let quietModeEnabled = false; // 80% reduction in chirping for chill vibe
 
@@ -2292,6 +2292,7 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         let antFamilies = new Map(); // Map ant ID to name
         let windChimeSounds = [];
         let windChimeTimeout = null;
+        let windChimeNoteTimeouts = []; // Track note-playing timeouts to prevent memory leak
         let lastWindChimeTime = 0;
         let windChimeStartTime = 0; // When wind chimes were turned on
         let windChimeDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
@@ -22205,11 +22206,16 @@ function spawnOwls() {
 
         debugLog(`Wind passing through chimes: ${sequence.join('-')}`);
 
+        // Clear any previous note timeouts to prevent memory leak
+        windChimeNoteTimeouts.forEach(timeout => clearTimeout(timeout));
+        windChimeNoteTimeouts = [];
+
         // Play notes in sequence with natural timing
         sequence.forEach((note, i) => {
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
                 playNote(note, 5 + Math.random() * 1);
             }, i * (100 + Math.random() * 50)); // 100-150ms between notes
+            windChimeNoteTimeouts.push(timeout); // Track timeout to prevent memory leak
         });
         
         lastWindChimeTime = now;
@@ -25149,6 +25155,11 @@ function drawFullScene() {
     if (windowSillToggle) {
         windowSillToggle.addEventListener('change', () => {
             windowSillEnabled = windowSillToggle.checked;
+            // CRITICAL FIX: Initialize perch spots when sill is enabled so birds can naturally land there
+            if (windowSillEnabled) {
+                initializeSillPerchSpots();
+                debugLog(`Window sill enabled - initialized ${sillPerchSpots.length} perch spots`);
+            }
             debugLog(`Window sill ${windowSillEnabled ? 'enabled' : 'disabled'}`);
         });
     }
@@ -26139,6 +26150,10 @@ if (toggleWindChimeBtn) {
         }
         windChimeTimeout = null;
     }
+
+    // MEMORY LEAK FIX: Clear all note-playing timeouts
+    windChimeNoteTimeouts.forEach(timeout => clearTimeout(timeout));
+    windChimeNoteTimeouts = [];
 
     // Reset wind chime timers
     windChimeStartTime = 0;
