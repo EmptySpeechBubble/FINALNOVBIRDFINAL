@@ -6750,8 +6750,17 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             ctx.save();
 
             // Interpolate position
-            const screenX = bird.x;
-            const screenY = bird.y;
+            // CRITICAL FIX: When leaving, interpolate from sill position to current flight position
+            let screenX, screenY;
+            if (isLeaving && bird.sillDepartureX !== undefined) {
+                // Leaving: Interpolate from sill (at progress=0) to flight position (at progress=1)
+                screenX = bird.sillDepartureX + (bird.x - bird.sillDepartureX) * progress;
+                screenY = bird.sillDepartureY + (bird.y - bird.sillDepartureY) * progress;
+            } else {
+                // Approaching: Use bird's current position (already flying towards sill)
+                screenX = bird.x;
+                screenY = bird.y;
+            }
 
             // Interpolate scale (1x to 3x)
             const scale = 1 + (effectiveProgress * (SILL_BIRD_SCALE - 1));
@@ -7045,6 +7054,9 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                             bird.sillTransitionDirection = null;
                             bird.isOnSill = false;
                             bird.sillTargetSpot = null;
+                            // Clean up departure position
+                            bird.sillDepartureX = undefined;
+                            bird.sillDepartureY = undefined;
                             debugLog('Bird completed leaving transition and returned to flying');
                         } else {
                             // Draw bird in transition
@@ -7081,6 +7093,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                         bird.sillAnimation = null;
                         bird.state = BIRD_STATES.FLYING;
                         bird.stateTimer = 0;
+
+                        // CRITICAL FIX: Store the sill position for smooth leaving animation
+                        // The transition will interpolate from this position to the bird's flight position
+                        bird.sillDepartureX = spot.x;
+                        bird.sillDepartureY = spot.y;
 
                         // Generate flight path away from sill
                         const targetX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
@@ -7187,6 +7204,10 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 bird.sillPerchStartTime = null;
                                 bird.state = BIRD_STATES.FLYING;
                                 bird.stateTimer = 0;
+
+                                // CRITICAL FIX: Store the sill position for smooth leaving animation
+                                bird.sillDepartureX = spot.x;
+                                bird.sillDepartureY = spot.y;
 
                                 // Generate flight path away from sill
                                 const targetX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
