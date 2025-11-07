@@ -6752,14 +6752,22 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // Interpolate position
             // CRITICAL FIX: Smooth interpolation for both approaching and leaving
             let screenX, screenY;
-            if (isLeaving && bird.sillDepartureX !== undefined) {
-                // Leaving: Interpolate from sill (at progress=0) to flight position (at progress=1)
-                screenX = bird.sillDepartureX + (bird.x - bird.sillDepartureX) * progress;
-                screenY = bird.sillDepartureY + (bird.y - bird.sillDepartureY) * progress;
+            if (isLeaving && bird.sillDepartureX !== undefined && bird.sillDepartureTargetX !== undefined) {
+                // Leaving: Interpolate from sill (at progress=0) to target position (at progress=1)
+                screenX = bird.sillDepartureX + (bird.sillDepartureTargetX - bird.sillDepartureX) * progress;
+                screenY = bird.sillDepartureY + (bird.sillDepartureTargetY - bird.sillDepartureY) * progress;
+
+                // Update bird's actual position during transition
+                bird.x = screenX;
+                bird.y = screenY;
             } else if (!isLeaving && bird.sillApproachStartX !== undefined && bird.sillTargetSpot) {
                 // Approaching: Interpolate from start position (at progress=0) to sill (at progress=1)
                 screenX = bird.sillApproachStartX + (bird.sillTargetSpot.x - bird.sillApproachStartX) * progress;
                 screenY = bird.sillApproachStartY + (bird.sillTargetSpot.y - bird.sillApproachStartY) * progress;
+
+                // Update bird's actual position during transition
+                bird.x = screenX;
+                bird.y = screenY;
             } else {
                 // Fallback: Use bird's current position
                 screenX = bird.x;
@@ -7070,9 +7078,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                             bird.sillTransitionDirection = null;
                             bird.isOnSill = false;
                             bird.sillTargetSpot = null;
-                            // Clean up departure position
+                            // Clean up departure position and target
                             bird.sillDepartureX = undefined;
                             bird.sillDepartureY = undefined;
+                            bird.sillDepartureTargetX = undefined;
+                            bird.sillDepartureTargetY = undefined;
                             debugLog('Bird completed leaving transition and returned to flying');
                         } else {
                             // Draw bird in transition
@@ -7110,14 +7120,15 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                         bird.state = BIRD_STATES.FLYING;
                         bird.stateTimer = 0;
 
-                        // CRITICAL FIX: Store the sill position for smooth leaving animation
-                        // The transition will interpolate from this position to the bird's flight position
+                        // CRITICAL FIX: Store the sill position and target for smooth leaving animation
                         bird.sillDepartureX = spot.x;
                         bird.sillDepartureY = spot.y;
 
-                        // Generate flight path away from sill
+                        // Generate flight path away from sill and store target for interpolation
                         const targetX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
                         const targetY = canvas.height * 0.4;
+                        bird.sillDepartureTargetX = targetX;
+                        bird.sillDepartureTargetY = targetY;
                         bird.generatePath(targetX, targetY);
 
                         spot.occupied = false;
@@ -7221,13 +7232,15 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 bird.state = BIRD_STATES.FLYING;
                                 bird.stateTimer = 0;
 
-                                // CRITICAL FIX: Store the sill position for smooth leaving animation
+                                // CRITICAL FIX: Store the sill position and target for smooth leaving animation
                                 bird.sillDepartureX = spot.x;
                                 bird.sillDepartureY = spot.y;
 
-                                // Generate flight path away from sill
+                                // Generate flight path away from sill and store target for interpolation
                                 const targetX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
                                 const targetY = canvas.height * 0.4;
+                                bird.sillDepartureTargetX = targetX;
+                                bird.sillDepartureTargetY = targetY;
                                 bird.generatePath(targetX, targetY);
 
                                 // Clear spot so another bird can land
@@ -23702,7 +23715,10 @@ drawAnts();
     
     // Update and draw birds (they should be above most elements)
     for (let i = birds.length - 1; i >= 0; i--) {
-        const remove = birds[i].update(deltaTime);
+        // CRITICAL FIX: Don't update birds in sill transition - their position is controlled by interpolation
+        // This prevents pathfinding from competing with the smooth transition animation
+        const remove = birds[i].sillTransitionProgress ? false : birds[i].update(deltaTime);
+
         if (remove) {
             // Remove from any occupied birdhouse
             for (const birdhouse of birdhouses) {
