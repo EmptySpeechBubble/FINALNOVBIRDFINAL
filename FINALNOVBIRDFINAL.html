@@ -6750,14 +6750,18 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             ctx.save();
 
             // Interpolate position
-            // CRITICAL FIX: When leaving, interpolate from sill position to current flight position
+            // CRITICAL FIX: Smooth interpolation for both approaching and leaving
             let screenX, screenY;
             if (isLeaving && bird.sillDepartureX !== undefined) {
                 // Leaving: Interpolate from sill (at progress=0) to flight position (at progress=1)
                 screenX = bird.sillDepartureX + (bird.x - bird.sillDepartureX) * progress;
                 screenY = bird.sillDepartureY + (bird.y - bird.sillDepartureY) * progress;
+            } else if (!isLeaving && bird.sillApproachStartX !== undefined && bird.sillTargetSpot) {
+                // Approaching: Interpolate from start position (at progress=0) to sill (at progress=1)
+                screenX = bird.sillApproachStartX + (bird.sillTargetSpot.x - bird.sillApproachStartX) * progress;
+                screenY = bird.sillApproachStartY + (bird.sillTargetSpot.y - bird.sillApproachStartY) * progress;
             } else {
-                // Approaching: Use bird's current position (already flying towards sill)
+                // Fallback: Use bird's current position
                 screenX = bird.x;
                 screenY = bird.y;
             }
@@ -7008,6 +7012,18 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                             bird.sillTransitionDirection = null;
                             bird.isOnSill = true;
                             bird.state = BIRD_STATES.PERCHED;
+
+                            // Set bird position to exact sill spot (prevent teleporting)
+                            if (bird.sillTargetSpot) {
+                                bird.x = bird.sillTargetSpot.x;
+                                bird.y = bird.sillTargetSpot.y;
+                                bird.velocity.x = 0;
+                                bird.velocity.y = 0;
+                            }
+
+                            // Clean up approach position data
+                            bird.sillApproachStartX = undefined;
+                            bird.sillApproachStartY = undefined;
 
                             // Initialize sill animation state
                             const shouldBeSleeping = bird.shouldSleepOnSill || false;
@@ -10264,15 +10280,22 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                         chosenSpot.occupied = true;
                         chosenSpot.bird = this;
 
-                        // Set bird to sill mode
-                        this.isOnSill = true;
-                        this.state = BIRD_STATES.PERCHED;
+                        // CRITICAL FIX: Use transition animation (not instant arrival)
+                        // Store starting position for smooth interpolation
+                        this.sillApproachStartX = this.x;
+                        this.sillApproachStartY = this.y;
+                        this.sillTargetSpot = chosenSpot;
+
+                        // Start transition animation
+                        this.sillTransitionProgress = 0;
+                        this.sillTransitionDirection = 'approaching';
+                        this.state = BIRD_STATES.FLYING;
                         this.stateTimer = 0;
 
-                        // Fly to sill spot
+                        // Generate path to guide general movement (bird will interpolate during transition)
                         this.generatePath(chosenSpot.x, chosenSpot.y);
 
-                        debugLog(`Bird chose to perch on window sill at (${chosenSpot.x})`);
+                        debugLog(`Bird chose to perch on window sill at (${chosenSpot.x}) - starting transition`);
                         return; // Skip normal perch selection
                     }
                 }
@@ -25766,6 +25789,10 @@ spawnSillBirdBtn.addEventListener('click', () => {
     chosenSpot.occupied = true;
     chosenSpot.bird = bird;
 
+    // Store starting position for smooth interpolation
+    bird.sillApproachStartX = bird.x;
+    bird.sillApproachStartY = bird.y;
+
     // Start transition to sill
     bird.sillTransitionProgress = 0;
     bird.sillTransitionDirection = 'approaching';
@@ -25813,6 +25840,10 @@ spawnSleepingSillBirdBtn.addEventListener('click', () => {
     const chosenSpot = availableSpots[Math.floor(Math.random() * availableSpots.length)];
     chosenSpot.occupied = true;
     chosenSpot.bird = bird;
+
+    // Store starting position for smooth interpolation
+    bird.sillApproachStartX = bird.x;
+    bird.sillApproachStartY = bird.y;
 
     // Start transition to sill
     bird.sillTransitionProgress = 0;
