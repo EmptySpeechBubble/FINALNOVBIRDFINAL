@@ -7132,6 +7132,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                         bird.sillTransitionProgress += transitionSpeed;
 
                         if (bird.sillTransitionProgress >= 1) {
+                            // CRITICAL FIX: Set bird to final target position before completing transition
+                            // Convert world target to final position
+                            bird.x = bird.sillDepartureTargetX;
+                            bird.y = bird.sillDepartureTargetY;
+
                             // Transition complete - bird is flying again
                             bird.sillTransitionProgress = 0;
                             bird.sillTransitionDirection = null;
