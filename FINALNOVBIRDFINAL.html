@@ -3404,13 +3404,13 @@ function toggleBirdRPG() {
 
     if (rpgFloat.style.display === 'none' || rpgFloat.style.display === '') {
         rpgFloat.style.display = 'flex';
-        // Initialize the RPG game if not already initialized
-        if (typeof initializeBirdRPG === 'function' && !window.birdRPGInitialized) {
-            initializeBirdRPG();
-            window.birdRPGInitialized = true;
-        }
+        // RPG is already initialized on page load via init() function
     } else {
         rpgFloat.style.display = 'none';
+        // Stop animation to prevent memory leak
+        if (typeof stopMapAnimation === 'function') {
+            stopMapAnimation();
+        }
     }
 }
 
@@ -28726,16 +28726,22 @@ canvas.addEventListener('touchstart', (e) => {
             let initialX;
             let initialY;
 
-            // Open window
-            launcher.addEventListener('click', function() {
-                floatWindow.style.display = 'block';
-                launcher.style.display = 'none';
-            });
+            // Open window (launcher button removed, gameboy click now toggles RPG)
+            if (launcher) {
+                launcher.addEventListener('click', function() {
+                    floatWindow.style.display = 'block';
+                    launcher.style.display = 'none';
+                });
+            }
 
             // Close window
             closeBtn.addEventListener('click', function() {
                 floatWindow.style.display = 'none';
-                launcher.style.display = 'block';
+                // Launcher button removed - gameboy click reopens RPG
+                // Stop animation to prevent memory leak
+                if (typeof stopMapAnimation === 'function') {
+                    stopMapAnimation();
+                }
             });
 
             // Minimize/Maximize
@@ -28844,6 +28850,9 @@ canvas.addEventListener('touchstart', (e) => {
                 bonuses: { health: 10, energy: 0, socialStanding: 0 }
             }
         };
+
+        // Track animation frame for cleanup
+        let mapAnimationFrameId = null;
 
         let gameState = {
             // Character
@@ -31556,7 +31565,14 @@ canvas.addEventListener('touchstart', (e) => {
         // Animate canvas map
         function animateMap() {
             drawCanvasMap();
-            requestAnimationFrame(animateMap);
+            mapAnimationFrameId = requestAnimationFrame(animateMap);
+        }
+
+        function stopMapAnimation() {
+            if (mapAnimationFrameId) {
+                cancelAnimationFrame(mapAnimationFrameId);
+                mapAnimationFrameId = null;
+            }
         }
 
         // Handle canvas clicks for territory navigation
@@ -32136,7 +32152,9 @@ canvas.addEventListener('touchstart', (e) => {
         }
 
         // Start game on load
-        window.onload = init;
+        window.addEventListener('load', () => {
+            init();
+        });
     </script>
 
     <!-- Bird RPG Game - Floating Window -->
