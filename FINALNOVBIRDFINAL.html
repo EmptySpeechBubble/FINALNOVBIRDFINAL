@@ -395,38 +395,16 @@
         }
     }
         /* Squarespace & iframe compatibility - force fullscreen, no borders */
-        html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            overflow-x: hidden !important;
-        }
+        /* REMOVED GLOBAL STYLES - These were affecting the entire page
+           The RPG is now a floating overlay and doesn't need to control html/body */
 
-        /* Remove any potential iframe borders/margins */
-        body.sqs-edit-mode-active,
-        .sqs-block-content,
-        .sqs-block-html {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
+        /* Scoped reset for RPG elements only */
+        .bird-rpg-float * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #87CEEB 0%, #B0D8F0 100%);
-            min-height: 100vh;
-            color: #2d3436;
-            overflow-x: hidden;
-            position: relative;
-            transition: background 0.5s ease, color 0.5s ease, box-shadow 0.5s ease;
-        }
+        /* RPG floating window doesn't need body styles */
 
         /* Day/Night indicator in corner - positioned relative to widget */
         #day-night-indicator {
@@ -704,8 +682,8 @@
                 font-size: 5px;
             }
 
-            /* Hide button text on mobile */
-            #game-header button {
+            /* Hide button text on mobile - scoped to RPG only */
+            .bird-rpg-float #game-header button {
                 display: none;
             }
         }
@@ -29030,8 +29008,91 @@ canvas.addEventListener('touchstart', (e) => {
         }
 
         function newGame() {
+            // Clear save
             localStorage.removeItem('seasonsOfTheFlock_save');
-            location.reload();
+
+            // Reset gameState to initial values
+            gameState.species = 'Bluebird';
+            gameState.level = 1;
+            gameState.xp = 0;
+            gameState.xpNeeded = 100;
+            gameState.health = 100;
+            gameState.maxHealth = 100;
+            gameState.hunger = 0;
+            gameState.energy = 100;
+            gameState.maxEnergy = 100;
+            gameState.socialStanding = 50;
+            gameState.skills = {
+                foraging: 1,
+                building: 1,
+                flying: 1,
+                combat: 1,
+                flocking: 1,
+                perception: 1
+            };
+            gameState.food = 0;
+            gameState.twigs = 0;
+            gameState.eggs = 0;
+            gameState.cachedFood = 0;
+            gameState.foodCaches = [];
+            gameState.mushroomFound = false;
+            gameState.season = 0;
+            gameState.turn = 1;
+            gameState.year = 1;
+            gameState.currentLocation = 4;
+            gameState.weather = 'clear';
+            gameState.weatherIntensity = 0;
+            gameState.timeOfDay = 'day';
+            gameState.diary = [];
+            gameState.totalDistance = 0;
+            gameState.hasNest = false;
+            gameState.hasBirdhouse = false;
+            gameState.nestProgress = 0;
+            gameState.nestType = null;
+            gameState.hasMate = false;
+            gameState.mateSpecies = null;
+            gameState.mateRelationship = 0;
+            gameState.courtshipProgress = 0;
+            gameState.offspring = 0;
+            gameState.babies = [];
+            gameState.eggsLaid = 0;
+            gameState.incubationTurns = 0;
+            gameState.ratsDefeated = 0;
+            gameState.activeQuests = [];
+            gameState.completedQuests = [];
+            gameState.isInCombat = false;
+            gameState.combatEnemy = null;
+            gameState.gameOver = false;
+            gameState.hasSeenIntro = false;
+            gameState.tutorialStep = 0;
+            gameState.tutorialActive = false;
+            gameState.mushroomModeActive = false;
+            gameState.mushroomModeTurns = 0;
+            gameState.flockMembers = [];
+            gameState.ufoEncounterHappened = false;
+            gameState.lastUFOTurn = -999;
+            gameState.hasWindChimes = false;
+            gameState.windChimesInstalled = false;
+            gameState.visitedPondThisTurn = false;
+            gameState.frogFriendship = 0;
+            gameState.actionsTakenThisTurn = 0;
+            gameState.maxActionsPerTurn = 5;
+            gameState.turnEndPending = false;
+
+            // Reinitialize territories
+            initTerritories();
+
+            // Update weather and UI
+            updateWeather();
+            updateUI();
+
+            // Save the new game state
+            saveGame();
+
+            // Show tutorial
+            showTutorial(0);
+
+            addMessage('New game started!', 'info');
         }
 
         // ===== UI UPDATES =====
