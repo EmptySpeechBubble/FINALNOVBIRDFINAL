@@ -6528,12 +6528,33 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                     emoteY: 0,
                     isSleeping: shouldBeSleeping,
                     sleepStartTime: shouldBeSleeping ? Date.now() : 0,
-                    zzzTimer: 0
+                    zzzTimer: 0,
+                    // Hopping animation
+                    isHopping: false,
+                    hopProgress: 0,
+                    hopStartX: 0,
+                    hopStartY: 0,
+                    hopTargetX: 0,
+                    hopTargetY: 0,
+                    hopTimer: 0,
+                    hopDuration: 400 // 400ms hop
                 };
                 bird.shouldSleepOnSill = false; // Clear flag after use
             }
 
             const anim = bird.sillAnimation;
+
+            // Hopping animation - interpolate position
+            let hopOffsetX = 0;
+            let hopOffsetY = 0;
+            if (anim.isHopping) {
+                const progress = anim.hopProgress;
+                // Horizontal movement
+                hopOffsetX = (anim.hopTargetX - anim.hopStartX) * progress;
+                // Vertical arc (parabola)
+                const arcHeight = 30 * scale; // Birds hop up 30 pixels
+                hopOffsetY = -Math.sin(progress * Math.PI) * arcHeight;
+            }
 
             // Body bob (gentle breathing)
             const bobOffset = Math.sin(anim.bodyBob) * 2;
@@ -6541,31 +6562,35 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // If sleeping, reduce movements and force eyes closed
             const isSleeping = anim.isSleeping;
 
+            // Apply hop offset to x and y
+            const drawX = x + hopOffsetX;
+            const drawY = y + hopOffsetY + bobOffset;
+
             // Draw body (round, fluffy) - made rounder and fluffier for cuteness
             ctx.fillStyle = bodyColor;
             ctx.beginPath();
-            ctx.ellipse(x, y + bobOffset, size * 1.3, size * 1.5, 0, 0, Math.PI * 2);
+            ctx.ellipse(drawX, drawY, size * 1.3, size * 1.5, 0, 0, Math.PI * 2);
             ctx.fill();
 
             // Draw wings on sides
             ctx.fillStyle = wingColor;
             // Left wing
             ctx.beginPath();
-            ctx.ellipse(x - size * 0.9, y + bobOffset, size * 0.5, size * 0.8, -0.3, 0, Math.PI * 2);
+            ctx.ellipse(drawX - size * 0.9, drawY, size * 0.5, size * 0.8, -0.3, 0, Math.PI * 2);
             ctx.fill();
             // Right wing
             ctx.beginPath();
-            ctx.ellipse(x + size * 0.9, y + bobOffset, size * 0.5, size * 0.8, 0.3, 0, Math.PI * 2);
+            ctx.ellipse(drawX + size * 0.9, drawY, size * 0.5, size * 0.8, 0.3, 0, Math.PI * 2);
             ctx.fill();
 
             // Draw tail feathers (bottom)
             ctx.fillStyle = wingColor;
             ctx.beginPath();
-            ctx.ellipse(x, y + size * 1.2 + bobOffset, size * 0.7, size * 0.4, 0, 0, Math.PI * 2);
+            ctx.ellipse(drawX, drawY + size * 1.2, size * 0.7, size * 0.4, 0, 0, Math.PI * 2);
             ctx.fill();
 
             // Draw feet
-            const footY = y + size * 1.3 + bobOffset;
+            const footY = drawY + size * 1.3;
             ctx.strokeStyle = '#FFD700'; // Bright yellow/gold feet (not brown like frame)
             ctx.lineWidth = 2 * scale;
 
@@ -6574,8 +6599,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             for (let i = 0; i < 3; i++) {
                 const angle = (i - 1) * 0.3;
                 ctx.beginPath();
-                ctx.moveTo(x - size * 0.4, leftFootY);
-                ctx.lineTo(x - size * 0.4 + Math.sin(angle) * 4 * scale, leftFootY + 6 * scale);
+                ctx.moveTo(drawX - size * 0.4, leftFootY);
+                ctx.lineTo(drawX - size * 0.4 + Math.sin(angle) * 4 * scale, leftFootY + 6 * scale);
                 ctx.stroke();
             }
 
@@ -6584,14 +6609,14 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             for (let i = 0; i < 3; i++) {
                 const angle = (i - 1) * 0.3;
                 ctx.beginPath();
-                ctx.moveTo(x + size * 0.4, rightFootY);
-                ctx.lineTo(x + size * 0.4 + Math.sin(angle) * 4 * scale, rightFootY + 6 * scale);
+                ctx.moveTo(drawX + size * 0.4, rightFootY);
+                ctx.lineTo(drawX + size * 0.4 + Math.sin(angle) * 4 * scale, rightFootY + 6 * scale);
                 ctx.stroke();
             }
 
             // Draw head with tilt
             ctx.save();
-            ctx.translate(x, y - size * 0.6 + bobOffset);
+            ctx.translate(drawX, drawY - size * 0.6);
             ctx.rotate(anim.headTilt);
 
             // Head - bigger and rounder for cuteness
@@ -6725,15 +6750,15 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 ctx.font = `${24 * scale}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const emoteY = y - size * 2 - anim.emoteY;
+                const emoteY = drawY - size * 2 - anim.emoteY;
 
                 // Emote shadow
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.fillText(anim.currentEmote, x + 2, emoteY + 2);
+                ctx.fillText(anim.currentEmote, drawX + 2, emoteY + 2);
 
                 // Emote
                 ctx.fillStyle = '#000000';
-                ctx.fillText(anim.currentEmote, x, emoteY);
+                ctx.fillText(anim.currentEmote, drawX, emoteY);
             }
 
             ctx.restore();
@@ -6749,29 +6774,38 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
             ctx.save();
 
-            // Interpolate position
-            // CRITICAL FIX: Smooth interpolation for both approaching and leaving
+            // CRITICAL FIX: Convert between world space and screen space
+            // Sill positions are in screen space, bird positions are in world space
             let screenX, screenY;
+
             if (isLeaving && bird.sillDepartureX !== undefined && bird.sillDepartureTargetX !== undefined) {
-                // Leaving: Interpolate from sill (at progress=0) to target position (at progress=1)
-                screenX = bird.sillDepartureX + (bird.sillDepartureTargetX - bird.sillDepartureX) * progress;
-                screenY = bird.sillDepartureY + (bird.sillDepartureTargetY - bird.sillDepartureY) * progress;
+                // Leaving: Interpolate from sill screen position to world target position
+                // Convert world target to screen coordinates
+                const targetScreenX = bird.sillDepartureTargetX * cameraZoom + cameraOffsetX;
+                const targetScreenY = bird.sillDepartureTargetY * cameraZoom + cameraOffsetY;
 
-                // Update bird's actual position during transition
-                bird.x = screenX;
-                bird.y = screenY;
+                screenX = bird.sillDepartureX + (targetScreenX - bird.sillDepartureX) * progress;
+                screenY = bird.sillDepartureY + (targetScreenY - bird.sillDepartureY) * progress;
+
+                // Update bird's world position during transition
+                bird.x = (screenX - cameraOffsetX) / cameraZoom;
+                bird.y = (screenY - cameraOffsetY) / cameraZoom;
             } else if (!isLeaving && bird.sillApproachStartX !== undefined && bird.sillTargetSpot) {
-                // Approaching: Interpolate from start position (at progress=0) to sill (at progress=1)
-                screenX = bird.sillApproachStartX + (bird.sillTargetSpot.x - bird.sillApproachStartX) * progress;
-                screenY = bird.sillApproachStartY + (bird.sillTargetSpot.y - bird.sillApproachStartY) * progress;
+                // Approaching: Interpolate from world position to sill screen position
+                // Convert world start position to screen coordinates
+                const startScreenX = bird.sillApproachStartX * cameraZoom + cameraOffsetX;
+                const startScreenY = bird.sillApproachStartY * cameraZoom + cameraOffsetY;
 
-                // Update bird's actual position during transition
-                bird.x = screenX;
-                bird.y = screenY;
+                screenX = startScreenX + (bird.sillTargetSpot.x - startScreenX) * progress;
+                screenY = startScreenY + (bird.sillTargetSpot.y - startScreenY) * progress;
+
+                // Update bird's world position during transition
+                bird.x = (screenX - cameraOffsetX) / cameraZoom;
+                bird.y = (screenY - cameraOffsetY) / cameraZoom;
             } else {
-                // Fallback: Use bird's current position
-                screenX = bird.x;
-                screenY = bird.y;
+                // Fallback: Convert bird's world position to screen
+                screenX = bird.x * cameraZoom + cameraOffsetX;
+                screenY = bird.y * cameraZoom + cameraOffsetY;
             }
 
             // Interpolate scale (1x to 3x)
@@ -6875,6 +6909,21 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             if (!bird.sillAnimation) return;
 
             const anim = bird.sillAnimation;
+
+            // Update hopping animation
+            if (anim.isHopping) {
+                anim.hopTimer += deltaTime;
+                anim.hopProgress = Math.min(1, anim.hopTimer / anim.hopDuration);
+
+                if (anim.hopProgress >= 1) {
+                    // Hop complete
+                    anim.isHopping = false;
+                    anim.hopProgress = 0;
+                    anim.hopTimer = 0;
+                }
+                // Skip other animations while hopping
+                return;
+            }
 
             // Randomly put birds to sleep (natural behavior)
             if (!anim.isSleeping && !anim.sleepStartTime) {
@@ -7058,7 +7107,16 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 zzzTimer: 0,
                                 headTurnAngle: 0,
                                 headTurnTarget: 0,
-                                headTurnTimer: 0
+                                headTurnTimer: 0,
+                                // Hopping animation
+                                isHopping: false,
+                                hopProgress: 0,
+                                hopStartX: 0,
+                                hopStartY: 0,
+                                hopTargetX: 0,
+                                hopTargetY: 0,
+                                hopTimer: 0,
+                                hopDuration: 400
                             };
 
                             // Clear the flag after use
@@ -7093,6 +7151,65 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             }
             ctx.restore();
 
+            // Bird-to-bird interactions - check for nearby birds
+            const occupiedSpots = sillPerchSpots.filter(spot => spot.occupied && spot.bird && !spot.bird.sillTransitionProgress);
+            for (let i = 0; i < occupiedSpots.length; i++) {
+                const spot = occupiedSpots[i];
+                const bird = spot.bird;
+
+                if (bird.sillAnimation && !bird.sillAnimation.isSleeping) {
+                    // Find adjacent birds
+                    const spotIndex = sillPerchSpots.indexOf(spot);
+                    const leftNeighbor = spotIndex > 0 ? sillPerchSpots[spotIndex - 1] : null;
+                    const rightNeighbor = spotIndex < sillPerchSpots.length - 1 ? sillPerchSpots[spotIndex + 1] : null;
+
+                    // Check for occupied neighbors
+                    const hasLeftBird = leftNeighbor && leftNeighbor.occupied && leftNeighbor.bird && !leftNeighbor.bird.sillAnimation?.isSleeping;
+                    const hasRightBird = rightNeighbor && rightNeighbor.occupied && rightNeighbor.bird && !rightNeighbor.bird.sillAnimation?.isSleeping;
+
+                    // Randomly look at neighbor
+                    if ((hasLeftBird || hasRightBird) && Math.random() < 0.0003) {
+                        if (hasLeftBird && hasRightBird) {
+                            // Both neighbors - pick one randomly
+                            bird.sillAnimation.headTurnTarget = Math.random() < 0.5 ? -0.85 : 0.85;
+                        } else if (hasLeftBird) {
+                            bird.sillAnimation.headTurnTarget = -0.85;
+                        } else {
+                            bird.sillAnimation.headTurnTarget = 0.85;
+                        }
+                        bird.sillAnimation.headTurnTimer = 0;
+                    }
+
+                    // Synchronized chirping with neighbor
+                    if ((hasLeftBird || hasRightBird) && Math.random() < 0.0002) {
+                        // Make this bird chirp
+                        bird.sillAnimation.beakOpen = 1;
+                        bird.sillAnimation.beakOpenTimer = 0;
+                        if (!bird.sillAnimation.currentEmote) {
+                            bird.sillAnimation.currentEmote = '♪';
+                            bird.sillAnimation.emoteTimer = 0;
+                            bird.sillAnimation.emoteY = 0;
+                        }
+
+                        // Make neighbor chirp too (50% chance)
+                        if (Math.random() < 0.5) {
+                            const neighbor = hasLeftBird ? leftNeighbor.bird : (hasRightBird ? rightNeighbor.bird : null);
+                            if (neighbor && neighbor.sillAnimation) {
+                                setTimeout(() => {
+                                    neighbor.sillAnimation.beakOpen = 1;
+                                    neighbor.sillAnimation.beakOpenTimer = 0;
+                                    if (!neighbor.sillAnimation.currentEmote) {
+                                        neighbor.sillAnimation.currentEmote = '♫';
+                                        neighbor.sillAnimation.emoteTimer = 0;
+                                        neighbor.sillAnimation.emoteY = 0;
+                                    }
+                                }, 200); // Slight delay for duet effect
+                            }
+                        }
+                    }
+                }
+            }
+
             // Then, draw birds fully on sill
             for (const spot of sillPerchSpots) {
                 if (spot.occupied && spot.bird) {
@@ -7103,6 +7220,54 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
                     // Update animation
                     updateSillBirdAnimation(bird, deltaTime);
+
+                    // Check if hop animation completed - update bird's spot
+                    if (bird.sillAnimation && bird.sillAnimation.isHopping && bird.sillAnimation.hopProgress >= 1) {
+                        // Find the target spot and update
+                        const targetSpot = sillPerchSpots.find(s => s.x === bird.sillAnimation.hopTargetX && s.y === bird.sillAnimation.hopTargetY);
+                        if (targetSpot) {
+                            // Free current spot
+                            spot.occupied = false;
+                            spot.bird = null;
+                            // Occupy new spot
+                            targetSpot.occupied = true;
+                            targetSpot.bird = bird;
+                            bird.sillTargetSpot = targetSpot;
+                            debugLog(`Bird hopped from spot at ${spot.x} to spot at ${targetSpot.x}`);
+                        }
+                    }
+
+                    // Try to initiate a hop (random chance, only if awake and not already hopping)
+                    if (bird.sillAnimation && !bird.sillAnimation.isSleeping && !bird.sillAnimation.isHopping) {
+                        // Random chance to hop (0.05% per frame when awake)
+                        if (Math.random() < 0.0005) {
+                            // Find available adjacent spots
+                            const currentIndex = sillPerchSpots.indexOf(spot);
+                            const adjacentSpots = [];
+
+                            // Check left neighbor
+                            if (currentIndex > 0 && !sillPerchSpots[currentIndex - 1].occupied) {
+                                adjacentSpots.push(sillPerchSpots[currentIndex - 1]);
+                            }
+                            // Check right neighbor
+                            if (currentIndex < sillPerchSpots.length - 1 && !sillPerchSpots[currentIndex + 1].occupied) {
+                                adjacentSpots.push(sillPerchSpots[currentIndex + 1]);
+                            }
+
+                            // If there's an available spot, hop to it
+                            if (adjacentSpots.length > 0) {
+                                const targetSpot = adjacentSpots[Math.floor(Math.random() * adjacentSpots.length)];
+                                bird.sillAnimation.isHopping = true;
+                                bird.sillAnimation.hopProgress = 0;
+                                bird.sillAnimation.hopTimer = 0;
+                                bird.sillAnimation.hopStartX = spot.x;
+                                bird.sillAnimation.hopStartY = spot.y;
+                                bird.sillAnimation.hopTargetX = targetSpot.x;
+                                bird.sillAnimation.hopTargetY = targetSpot.y;
+                                debugLog(`Bird starting hop from ${spot.x} to ${targetSpot.x}`);
+                            }
+                        }
+                    }
 
                     // Check if bird should leave
                     if (!bird.sillPerchStartTime) {
