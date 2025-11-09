@@ -6915,11 +6915,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 anim.hopTimer += deltaTime;
                 anim.hopProgress = Math.min(1, anim.hopTimer / anim.hopDuration);
 
+                // Don't complete hop here - let the main loop handle spot reassignment
+                // Just keep hopProgress at 1 until the loop processes it
                 if (anim.hopProgress >= 1) {
-                    // Hop complete
-                    anim.isHopping = false;
-                    anim.hopProgress = 0;
-                    anim.hopTimer = 0;
+                    anim.hopProgress = 1; // Keep at exactly 1
+                    // Don't set isHopping to false yet - main loop will do it
                 }
                 // Skip other animations while hopping
                 return;
@@ -7070,10 +7070,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                             bird.isOnSill = true;
                             bird.state = BIRD_STATES.PERCHED;
 
-                            // Set bird position to exact sill spot (prevent teleporting)
+                            // Set bird position to exact sill spot in world coordinates
+                            // Sill spots are in screen space, but bird.x/y need to be in world space for camera locking
                             if (bird.sillTargetSpot) {
-                                bird.x = bird.sillTargetSpot.x;
-                                bird.y = bird.sillTargetSpot.y;
+                                bird.x = (bird.sillTargetSpot.x - cameraOffsetX) / cameraZoom;
+                                bird.y = (bird.sillTargetSpot.y - cameraOffsetY) / cameraZoom;
                                 bird.velocity.x = 0;
                                 bird.velocity.y = 0;
                             }
@@ -7195,13 +7196,22 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                         if (Math.random() < 0.5) {
                             const neighbor = hasLeftBird ? leftNeighbor.bird : (hasRightBird ? rightNeighbor.bird : null);
                             if (neighbor && neighbor.sillAnimation) {
+                                // Store reference to neighbor and spot for validation
+                                const neighborBird = neighbor;
+                                const neighborSpot = hasLeftBird ? leftNeighbor : rightNeighbor;
                                 setTimeout(() => {
-                                    neighbor.sillAnimation.beakOpen = 1;
-                                    neighbor.sillAnimation.beakOpenTimer = 0;
-                                    if (!neighbor.sillAnimation.currentEmote) {
-                                        neighbor.sillAnimation.currentEmote = '♫';
-                                        neighbor.sillAnimation.emoteTimer = 0;
-                                        neighbor.sillAnimation.emoteY = 0;
+                                    // Validate neighbor still exists and is on sill before chirping
+                                    if (neighborBird.sillAnimation &&
+                                        neighborSpot.occupied &&
+                                        neighborSpot.bird === neighborBird &&
+                                        !neighborBird.sillAnimation.isSleeping) {
+                                        neighborBird.sillAnimation.beakOpen = 1;
+                                        neighborBird.sillAnimation.beakOpenTimer = 0;
+                                        if (!neighborBird.sillAnimation.currentEmote) {
+                                            neighborBird.sillAnimation.currentEmote = '♫';
+                                            neighborBird.sillAnimation.emoteTimer = 0;
+                                            neighborBird.sillAnimation.emoteY = 0;
+                                        }
                                     }
                                 }, 200); // Slight delay for duet effect
                             }
@@ -7211,6 +7221,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             }
 
             // Then, draw birds fully on sill
+            // First pass: Update all animations and collect completed hops
+            const completedHops = [];
             for (const spot of sillPerchSpots) {
                 if (spot.occupied && spot.bird) {
                     const bird = spot.bird;
@@ -7221,21 +7233,50 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                     // Update animation
                     updateSillBirdAnimation(bird, deltaTime);
 
-                    // Check if hop animation completed - update bird's spot
+                    // Check if hop animation completed - collect for processing after loop
                     if (bird.sillAnimation && bird.sillAnimation.isHopping && bird.sillAnimation.hopProgress >= 1) {
-                        // Find the target spot and update
-                        const targetSpot = sillPerchSpots.find(s => s.x === bird.sillAnimation.hopTargetX && s.y === bird.sillAnimation.hopTargetY);
-                        if (targetSpot) {
-                            // Free current spot
-                            spot.occupied = false;
-                            spot.bird = null;
-                            // Occupy new spot
-                            targetSpot.occupied = true;
-                            targetSpot.bird = bird;
-                            bird.sillTargetSpot = targetSpot;
-                            debugLog(`Bird hopped from spot at ${spot.x} to spot at ${targetSpot.x}`);
-                        }
+                        completedHops.push({ bird, oldSpot: spot });
                     }
+                }
+            }
+
+            // Process completed hops (do this outside the main loop to avoid modification during iteration)
+            for (const { bird, oldSpot } of completedHops) {
+                const targetSpot = sillPerchSpots.find(s => s.x === bird.sillAnimation.hopTargetX && s.y === bird.sillAnimation.hopTargetY);
+                if (targetSpot && !targetSpot.occupied) {
+                    // Free old spot
+                    oldSpot.occupied = false;
+                    oldSpot.bird = null;
+                    // Occupy new spot
+                    targetSpot.occupied = true;
+                    targetSpot.bird = bird;
+                    bird.sillTargetSpot = targetSpot;
+                    // Complete the hop animation
+                    bird.sillAnimation.isHopping = false;
+                    bird.sillAnimation.hopProgress = 0;
+                    bird.sillAnimation.hopTimer = 0;
+                    debugLog(`Bird hopped from spot at ${oldSpot.x} to spot at ${targetSpot.x}`);
+                } else {
+                    // Target spot became occupied or invalid - cancel hop
+                    bird.sillAnimation.isHopping = false;
+                    bird.sillAnimation.hopProgress = 0;
+                    bird.sillAnimation.hopTimer = 0;
+                    debugLog(`Hop cancelled - target spot unavailable`);
+                }
+            }
+
+            // Second pass: Handle other logic and drawing
+            for (const spot of sillPerchSpots) {
+                if (spot.occupied && spot.bird) {
+                    const bird = spot.bird;
+
+                    // Skip if bird is in transition
+                    if (bird.sillTransitionProgress) continue;
+
+                    // Update bird's world coordinates to match screen position (for camera locking)
+                    // Sill spots are in screen space, so we need to convert to world space
+                    bird.x = (spot.x - cameraOffsetX) / cameraZoom;
+                    bird.y = (spot.y - cameraOffsetY) / cameraZoom;
 
                     // Try to initiate a hop (random chance, only if awake and not already hopping)
                     if (bird.sillAnimation && !bird.sillAnimation.isSleeping && !bird.sillAnimation.isHopping) {
