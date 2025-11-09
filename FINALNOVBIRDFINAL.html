@@ -7440,7 +7440,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 anim.emoteY = 0;
 
                                 // Start leaving transition (same as natural departure)
-                                bird.sillTransitionProgress = 0;
+                                // CRITICAL: Use 0.001 instead of 0 so the transition check is truthy
+                                bird.sillTransitionProgress = 0.001;
                                 bird.sillTransitionDirection = 'leaving';
                                 bird.sillPerchStartTime = null;
                                 bird.state = BIRD_STATES.FLYING;
