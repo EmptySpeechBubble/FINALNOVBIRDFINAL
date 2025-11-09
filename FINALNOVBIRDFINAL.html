@@ -7331,11 +7331,14 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                         bird.sillDepartureY = spot.y;
 
                         // Generate flight path away from sill and store target for interpolation
-                        const targetX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
-                        const targetY = canvas.height * 0.4;
-                        bird.sillDepartureTargetX = targetX;
-                        bird.sillDepartureTargetY = targetY;
-                        bird.generatePath(targetX, targetY);
+                        // IMPORTANT: Convert screen space target to world space coordinates
+                        const targetScreenX = Math.random() < 0.5 ? canvas.width * 0.3 : canvas.width * 0.7;
+                        const targetScreenY = canvas.height * 0.4;
+                        const targetWorldX = (targetScreenX - cameraOffsetX) / cameraZoom;
+                        const targetWorldY = (targetScreenY - cameraOffsetY) / cameraZoom;
+                        bird.sillDepartureTargetX = targetWorldX;
+                        bird.sillDepartureTargetY = targetWorldY;
+                        bird.generatePath(targetWorldX, targetWorldY);
 
                         spot.occupied = false;
                         spot.bird = null;
